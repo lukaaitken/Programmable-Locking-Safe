@@ -1,0 +1,177 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+entity PmodKYPD is
+generic ( ClockF: INTEGER := 100000000);
+Port (
+clk : in STD_LOGIC;
+JA : inout STD_LOGIC_VECTOR (7 downto 0); -- PmodKYPD is designed to be
+connected to JA
+an : out STD_LOGIC_VECTOR (3 downto 0); -- Controls which position of the seven
+segment display to display
+seg : out STD_LOGIC_VECTOR (6 downto 0);
+digit_count: in std_logic_vector (1 downto 0); -- digit to display on the seven segment
+display
+led: out std_logic;
+door: in std_logic;
+ledDoor: out std_logic;
+alarm: out std_logic
+);
+end PmodKYPD;
+architecture Behavioral of PmodKYPD is
+component Decoder is
+Port (
+clk : in STD_LOGIC;
+Row : in STD_LOGIC_VECTOR (3 downto 0);
+Col : out STD_LOGIC_VECTOR (3 downto 0);
+DecodeOut : out STD_LOGIC_VECTOR (3 downto 0));
+end component;
+component DisplayController is
+Port (
+DispVal : in STD_LOGIC_VECTOR (3 downto 0);
+anode: out std_logic_vector(3 downto 0);
+segOut : out STD_LOGIC_VECTOR (6 downto 0));
+end component;
+signal Decode: STD_LOGIC_VECTOR (3 downto 0);
+signal pos1: std_logic_vector (3 downto 0);
+signal pos2: std_logic_vector (3 downto 0);
+signal pos3: std_logic_vector (3 downto 0);
+signal pos4: std_logic_vector (3 downto 0);
+signal pass1: std_logic_vector (3 downto 0);
+signal pass2: std_logic_vector (3 downto 0);
+signal pass3: std_logic_vector (3 downto 0);
+signal pass4: std_logic_vector (3 downto 0);
+signal ticks: integer;
+signal nreset: std_logic;
+signal Second: integer := 0;
+signal State, nextState: integer range 0 to 4;
+begin
+C0: Decoder port map (clk=>clk, Row =>JA(7 downto 4), Col=>JA(3 downto 0),
+DecodeOut=> Decode);
+C1: DisplayController port map (DispVal=>Decode, anode=>an, segOut=>seg );
+pass1 <= "0001";
+pass2 <= "0010";
+pass3 <= "0011";
+pass4 <= "0100";
+process(State)
+begin
+case State is
+when 0 =>
+nreset <= '0';
+led <= '0';
+ledDoor <= '0';
+alarm <= '0';
+case digit_count is
+when "00" =>
+an <= "1110";
+pos4 <= Decode;
+when "01" =>
+an <= "1101";
+pos3 <= Decode;
+when "10" =>
+an <= "1011";
+pos2 <= Decode;
+when "11" =>
+an <= "0111";
+pos1 <= Decode;
+when others =>
+an <= "1111";
+end case;
+if ((pos1 = pass1) and (pos2 = pass2) and (pos3 = pass3) and (pos4 = pass4)) then
+nextState <= 1;
+else
+if (door = '1') then
+nextState <= 4;
+else
+led <= '0';
+nextState <= 0;
+end if;
+end if;
+when 1 =>
+nreset<= '0';
+led <= '1';
+if (door = '1') then
+nextState <= 2;
+else
+nextState <= 1;
+end if;
+when 2 =>
+ledDoor <= '1';
+nreset <= '1';
+if ( second = 5) then
+nextstate <= 4;
+nreset <= '0';
+elsif (door = '0') then
+nextState <= 3;
+else
+ne
+xtSt
+a
+te <= 2;
+end if;
+when 3 =>
+led <= '0';
+ledDoor <= '0';
+alarm <= '0';
+nreset<= '0';
+pos1 <= "0000";
+pos2 <= "0000";
+pos3 <= "0000";
+pos4 <= "0000";
+ne
+xtSt
+a
+te <= 0;
+when 4 =>
+nreset <='1';
+if (Second mod 2 = 0) then
+alarm <= '1';
+else
+alarm <= '0';
+end if;
+led <= '0';
+if (door = '0') then
+ne
+xtSt
+a
+te <= 3;
+else
+ne
+xtSt
+a
+te <= 4;
+end if;
+when others => null;
+end case;
+end process;
+process(clk)
+begin
+if clk'EVENT and clk = '1' then
+St
+a
+te <= ne
+xtSt
+a
+te;
+end if;
+if rising_edge(clk) then
+-- If the neg
+ative reset signal is activ
+e
+if nreset = '0' then
+ticks <= 0;
+Second <= 0;
+else
+-- True once e
+very second
+if ticks = ClockF - 1 then
+ticks <= 0;
+Second <= Second + 1;
+else
+ticks <= ticks + 1;
+end if;
+end if;
+end if;
+end process;
+end Behavioral;
